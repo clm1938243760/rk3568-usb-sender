@@ -1,0 +1,9 @@
+*.log
+*.tmp
+*.swp
+*.bak
+__pycache__/
+*.pyc
+seen.db
+last_mtime
+sender.log

@@ -1,0 +1,100 @@
+#!/bin/sh
+
+### BEGIN INIT INFO
+# Provides:          usb_sender
+# Required-Start:    $remote_fs $network
+# Required-Stop:     $remote_fs $network
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: USB sender auto start service
+### END INIT INFO
+
+NAME="usb_sender"
+SCRIPT="/root/usb_sender.sh"
+PIDFILE="/var/run/usb_sender.pid"
+LOGFILE="/var/log/usb_sender_start.log"
+
+start_service() {
+    echo "[S99usb_sender] starting..." >> "$LOGFILE"
+
+    if [ ! -x "$SCRIPT" ]; then
+        echo "[S99usb_sender] script not found or not executable: $SCRIPT" >> "$LOGFILE"
+        return 1
+    fi
+
+    if [ -f "$PIDFILE" ]; then
+        PID="$(cat "$PIDFILE" 2>/dev/null)"
+        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            echo "[S99usb_sender] already running, pid=$PID" >> "$LOGFILE"
+            return 0
+        else
+            rm -f "$PIDFILE"
+        fi
+    fi
+
+    nohup "$SCRIPT" >> "$LOGFILE" 2>&1 &
+    PID=$!
+    echo "$PID" > "$PIDFILE"
+    echo "[S99usb_sender] started, pid=$PID" >> "$LOGFILE"
+    return 0
+}
+
+stop_service() {
+    echo "[S99usb_sender] stopping..." >> "$LOGFILE"
+
+    if [ -f "$PIDFILE" ]; then
+        PID="$(cat "$PIDFILE" 2>/dev/null)"
+        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            kill "$PID"
+            sleep 1
+
+            if kill -0 "$PID" 2>/dev/null; then
+                kill -9 "$PID" 2>/dev/null
+            fi
+
+            echo "[S99usb_sender] stopped pid=$PID" >> "$LOGFILE"
+        fi
+        rm -f "$PIDFILE"
+    else
+        killall usb_sender.sh 2>/dev/null
+        echo "[S99usb_sender] pidfile not found, killall attempted" >> "$LOGFILE"
+    fi
+
+    return 0
+}
+
+status_service() {
+    if [ -f "$PIDFILE" ]; then
+        PID="$(cat "$PIDFILE" 2>/dev/null)"
+        if [ -n "$PID" ] && kill -0 "$PID" 2>/dev/null; then
+            echo "$NAME is running, pid=$PID"
+            return 0
+        fi
+    fi
+
+    echo "$NAME is not running"
+    return 1
+}
+
+case "$1" in
+    start)
+        start_service
+        ;;
+    stop)
+        stop_service
+        ;;
+    restart)
+        stop_service
+        sleep 1
+        start_service
+        ;;
+    status)
+        status_service
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart|status}"
+        exit 1
+        ;;
+esac
+
+exit 0
