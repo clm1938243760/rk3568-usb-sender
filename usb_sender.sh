@@ -37,6 +37,10 @@ file_sig() {
     echo "${name}|${size}|${mtime}"
 }
 
+usb_unplug() {
+    echo "" > "$UDC" 2>/dev/null
+}
+
 safe_mount() {
     mount | grep " $MNT " >/dev/null 2>&1
     if [ $? -ne 0 ]; then
@@ -54,9 +58,10 @@ safe_umount() {
 }
 
 replug_usb() {
-    echo "" > "$UDC"
-    sleep 1
-    echo "$UDC_DEV" > "$UDC"
+    echo usb_ums_en > /etc/init.d/.usb_config
+    echo usb_ums_en > /tmp/.usb_config
+    sync
+    /etc/init.d/S50usbdevice restart >/dev/null 2>&1
 }
 
 log "[start] usb sender started"
@@ -75,9 +80,15 @@ do
             continue
         fi
 
+        log "[usb] unplug before mount"
+        usb_unplug
+        sleep 1
+
         if ! safe_mount; then
             log "[error] mount failed"
             sleep 5
+            log "[usb] replug after mount fail"
+            replug_usb
             continue
         fi
 
@@ -114,9 +125,12 @@ do
             replug_usb
         else
             log "[skip] no new files sent"
+            log "[usb] replug"
+            replug_usb
         fi
 
-        echo "$CUR_MTIME" > "$LAST_MTIME"
+        FINAL_MTIME="$(stat -c %Y "$IMG" 2>/dev/null)"
+        echo "${FINAL_MTIME:-$CUR_MTIME}" > "$LAST_MTIME"
     fi
 
     sleep 5
